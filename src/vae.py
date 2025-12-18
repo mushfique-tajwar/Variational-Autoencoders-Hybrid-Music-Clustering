@@ -54,10 +54,16 @@ def train_vae(model: VAE, dataloader, epochs: int = 50, lr: float = 1e-3, device
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     model.train()
+    skipped = 0
     for epoch in range(1, epochs + 1):
         total_loss = 0.0
         for batch in dataloader:
             x = batch.to(device)
+            # sanitize batch
+            x = torch.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
+            if torch.isnan(x).any() or torch.isinf(x).any():
+                skipped += 1
+                continue
             optimizer.zero_grad()
             recon, mu, logvar = model(x)
             loss = loss_fn(recon, x, mu, logvar)
@@ -67,6 +73,8 @@ def train_vae(model: VAE, dataloader, epochs: int = 50, lr: float = 1e-3, device
         avg_loss = total_loss / len(dataloader.dataset)
         if epoch % max(1, epochs // 10) == 0 or epoch == 1:
             print(f"Epoch {epoch}/{epochs} | loss: {avg_loss:.4f}")
+    if skipped:
+        print(f"Warning: skipped {skipped} batches due to NaN/Inf inputs.")
     return model
 
 
