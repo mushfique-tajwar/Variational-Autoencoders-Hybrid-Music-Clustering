@@ -1,20 +1,52 @@
-# Ignore dataset CSV splits
-/dataset/train.csv
-/dataset/test.csv
-
-# Python and env
-.venv/
+#############################################
+# Python
+#############################################
 __pycache__/
 *.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+.env/
+
+# Packaging / build
+build/
+dist/
 *.egg-info/
-.Python
+.eggs/
+
+# Test / coverage
 .pytest_cache/
+.coverage*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+#############################################
+# Notebooks
+#############################################
 .ipynb_checkpoints/
 
-# Results/artifacts
-results/
-*.png
-
-# OS/editor
+#############################################
+# OS / editor
+#############################################
 .DS_Store
+Thumbs.db
 .vscode/
+
+#############################################
+# Project outputs
+#############################################
+logs/
+checkpoints/
+wandb/
+
+#############################################
+# Data
+# Keep small metadata tracked, ignore large media folders by default.
+#############################################
+/dataset/audio/
+/dataset/lyrics/
+

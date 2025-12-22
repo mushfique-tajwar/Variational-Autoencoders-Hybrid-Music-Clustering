@@ -1,70 +1,87 @@
-# VAE Hybrid Music Clustering (Easy Task)
+# Variational-Autoencoders-Hybrid-Music-Clustering
 
-This repo implements the Easy task: a basic VAE to extract latent features from numeric CSV data, clustering with K-Means, visualizing via t-SNE/UMAP, and comparing against a PCA+KMeans baseline using Silhouette and Calinski-Harabasz metrics.
+This repo contains a runnable end-to-end implementation of the **Easy / Medium / Hard** tasks from `Guidelines.md`.
+
+It uses the provided `dataset/audio` folder (GTZAN-style files like `blues.00000.au`) and optionally `dataset/lyrics` if you add matching lyric files.
 
 ## Setup
 
-Install dependencies:
+On many Linux distros, `pip` is blocked from installing system-wide packages (PEP 668: `externally-managed-environment`).
+Use a **virtual environment** instead.
+
+### Option A: Use the existing repo venv (recommended)
+
+This repo already supports a local venv at `.venv/`.
+
+```bash
+./.venv/bin/python -m pip install -r requirements.txt
+```
+
+### Option B: Create a new venv
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install -r requirements.txt
+```
+
+```bash
 pip install -r requirements.txt
 ```
 
-## Data
-
-Place your features in `dataset/train.csv`.
-
-- If your CSV is numeric-only (e.g., MFCCs), it will be used directly.
-- If it contains text/categorical columns, the pipeline can automatically build features:
-	- Text via TF-IDF (e.g., `Lyrics`)
-	- Categorical via one-hot (e.g., `Genre`, `Language`)
-
-Optionally, specify a label column name via `--label_column` to drop it from features.
-
-## Run (Easy Task)
-
-Basic numeric run:
+## Easy task (VAE + KMeans + t-SNE/UMAP + PCA baseline)
 
 ```bash
-python main_easy.py --train_csv dataset/train.csv --latent_dim 16 --n_clusters 5 --epochs 50
+./.venv/bin/python -m scripts.main_easy --audio_dir dataset/audio --latent_dim 16 --n_clusters 5 --epochs 30 --max_items 200 --embed tsne
 ```
 
-Mixed-type (text + categorical) run:
+
+Outputs in `results/easy/`:
+
+- `metrics_easy.csv`
+- `vae_tsne.png`, `pca_tsne.png` (or UMAP)
+
+If you want label-based metrics (ARI/NMI/Purity), enable:
 
 ```bash
-python main_easy.py \
-	--train_csv dataset/train.csv \
-	--drop_columns Artist Song \
-	--text_cols Lyrics \
-	--cat_cols Genre Language \
-	--tfidf_max_features 2000 --tfidf_ngram_min 1 --tfidf_ngram_max 2 \
-	--latent_dim 16 --n_clusters 5 --epochs 50
+./.venv/bin/python -m scripts.main_easy --audio_dir dataset/audio --use_labels
 ```
 
-Fast dev run (skip visuals, fewer epochs):
+Labels are inferred from filename prefixes (e.g. `blues`, `classical`).
 
 ```bash
-python main_easy.py --train_csv dataset/train.csv --epochs 5 --n_clusters 2 --skip_visuals
+./.venv/bin/python -m scripts.main_easy --audio_dir dataset/audio
 ```
 
-Inspect which columns are kept/dropped:
+## Medium task (audio+lyrics fusion, more clustering)
 
 ```bash
-python main_easy.py --train_csv dataset/train.csv --inspect_columns \
-	--drop_columns Artist Song --text_cols Lyrics --cat_cols Genre Language
+./.venv/bin/python -m scripts.main_medium --audio_dir dataset/audio --epochs 30 --embed tsne
 ```
 
-Outputs:
+If you have lyrics:
 
-- `results/latent_visualization/tsne_latent.png` (if not skipped)
-- `results/latent_visualization/umap_latent.png` (if not skipped)
-- `results/clustering_metrics.csv`
+```bash
+./.venv/bin/python -m scripts.main_medium --audio_dir dataset/audio --lyrics_dir dataset/lyrics --use_lyrics
+```
+
+
+```bash
+./.venv/bin/python -m scripts.main_medium --audio_dir dataset/audio
+```
+
+
+## Hard task (Beta-VAE)
+
+```bash
+./.venv/bin/python -m scripts.main_hard --audio_dir dataset/audio --beta 4.0 --epochs 50 --n_clusters 10 --use_labels
+```
+
+```bash
+./.venv/bin/python -m scripts.main_hard --audio_dir dataset/audio --use_labels
+```
 
 ## Notes
 
-- The VAE is a simple MLP suitable for tabular features (e.g., MFCCs or TF-IDF embeddings of lyrics).
-- If your data is tiny or near-identical, K-Means may collapse to < n_clusters; consider reducing `--n_clusters` or enriching features.
-- For faster runs, use `--skip_visuals`, or selectively `--skip_tsne`/`--skip_umap`.
-- GPU is used if available; pass `--cpu` to force CPU.
+- This is designed to be **lightweight and reproducible** rather than state-of-the-art.
+- Audio features are log-mel spectrograms padded/truncated to a fixed length.

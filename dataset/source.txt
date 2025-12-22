@@ -1,1 +1,8 @@
-https://www.kaggle.com/datasets/mateibejan/multilingual-lyrics-for-genre-classification
+Audio - 
+https://www.kaggle.com/datasets/carlthome/gtzan-genre-collection
+
+Lyrics English - 
+https://www.kaggle.com/datasets/suraj520/music-dataset-song-information-and-lyrics
+
+Lyrics Bangla - 
+https://www.kaggle.com/datasets/meherabhasansajid/bangla-song-lyrics-dataset-with-genres-and-artists

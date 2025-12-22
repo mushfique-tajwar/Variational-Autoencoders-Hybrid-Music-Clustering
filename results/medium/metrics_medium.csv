@@ -1,0 +1,4 @@
+method,silhouette,calinski_harabasz,davies_bouldin,ari,nmi,purity
+vae+kmeans,0.48821011185646057,629.6001821438591,0.6457764292485255,,,
+vae+agglomerative,0.47633621096611023,587.4447181275395,0.6991976291695084,,,
+vae+dbscan,,,,,,
