@@ -51,3 +51,12 @@ wandb/
 /dataset/lyrics/
 
 /Ignore
+
+/report/main.aux
+/report/main.bbl
+/report/main.blg
+/report/main.log
+/report/main.out
+/report/main.tex
+/report/README.md
+/report/references.bib
