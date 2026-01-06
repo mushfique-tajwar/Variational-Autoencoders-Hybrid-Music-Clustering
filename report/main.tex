@@ -1,0 +1,262 @@
+% Variational Autoencoders for Hybrid Music Clustering
+% NeurIPS-style report (unofficial; uses neurips_2024 package).
+
+\documentclass{article}
+
+% NeurIPS-style formatting (optional)
+% If you have the official NeurIPS style file, put it in report/neurips_2024.sty.
+% This file will compile even without it.
+\IfFileExists{neurips_2024.sty}{%
+  \usepackage[final]{neurips_2024}%
+}{%
+  % Fallback: standard article formatting
+  \usepackage[margin=1in]{geometry}%
+}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+% Allow long URLs to line-break cleanly within margins.
+\usepackage{xurl}
+\hypersetup{breaklinks=true}
+\urlstyle{same}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+% microtype improves spacing, but can fail on some TeX setups due to font expansion.
+% Keep it disabled for maximum portability.
+% \usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage[section]{placeins} % provides \FloatBarrier to prevent floats crossing sections
+\usepackage{float} % provides [H] float placement
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.18}
+
+% Pretty-print CSV experiment tables.
+% - Round floats to 3 decimals
+% - Print empty cells as "--"
+\pgfplotstableset{%
+  col sep=comma,
+  empty cells with={--},
+  every head row/.style={before row=\toprule,after row=\midrule},
+  every last row/.style={after row=\bottomrule},
+}
+
+% Helper style for the metrics CSVs written by the scripts.
+\pgfplotstableset{%
+  metrics-default/.style={%
+    columns/method/.style={string type,column name=Method},
+    columns/silhouette/.style={fixed,fixed zerofill,precision=3,column name=Silhouette},
+    columns/calinski_harabasz/.style={fixed,precision=2,column name=CH},
+    columns/davies_bouldin/.style={fixed,fixed zerofill,precision=3,column name=DB},
+    columns/ari/.style={fixed,fixed zerofill,precision=3,column name=ARI},
+    columns/nmi/.style={fixed,fixed zerofill,precision=3,column name=NMI},
+    columns/purity/.style={fixed,fixed zerofill,precision=3,column name=Purity},
+  },
+}
+
+\title{Variational Autoencoders for Hybrid Language Music Clustering}
+
+% Replace with your info
+\author{%
+  Mushfique Tajwar \\
+  Department of Computer Science and Engineering \\
+  BRAC University \\
+  \texttt{mushfique.tajwar@g.bracu.ac.bd} \\
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This work presents a lightweight, reproducible unsupervised learning pipeline for clustering music tracks using variational autoencoders (VAEs). Audio tracks are converted into fixed-length log-mel spectrogram vectors and encoded into a low-dimensional latent space using an MLP-based VAE (Easy/Medium) or a \(\beta\)-VAE (Hard). The latent representations are clustered using K-Means and other standard clustering algorithms (Agglomerative Clustering and DBSCAN), and cluster quality is evaluated with internal indices (Silhouette, Calinski--Harabasz, Davies--Bouldin) and optionally label-based metrics (ARI/NMI/Purity) inferred from GTZAN-style filename prefixes. A PCA + K-Means baseline is included, and embeddings are visualized with t-SNE/UMAP.
+
+\paragraph{Code availability.}
+The code for this project is available at \url{https://github.com/mushfique-tajwar/Variational-Autoencoders-Hybrid-Music-Clustering}.
+\end{abstract}
+
+\section{Introduction}
+Unsupervised clustering of music is useful for discovery, organization, playlist generation, and understanding latent structure in large audio collections. However, raw audio waveforms are high-dimensional and difficult to cluster directly. Representation learning approaches, especially variational autoencoders (VAEs), provide a principled method to learn compact, approximately continuous latent spaces suitable for downstream clustering.
+
+This project implements a full end-to-end pipeline for VAE-based clustering on an audio dataset in a GTZAN-like format (e.g., \texttt{blues.00000.au}). The repository supports three incremental tasks:
+(i) an Easy task using an MLP-VAE on flattened log-mel features with K-Means and PCA baseline,
+(ii) a Medium task allowing optional audio+lyrics feature fusion and multiple clustering methods,
+and (iii) a Hard task implementing a \(\beta\)-VAE for stronger regularization / disentanglement.
+
+\section{Related Work}
+VAEs~\cite{kingma2014autoencoding} learn generative latent-variable models by maximizing an evidence lower bound (ELBO). \(\beta\)-VAEs~\cite{higgins2017beta} modify the ELBO to encourage disentangled representations by scaling the KL term.
+For clustering evaluation without labels, internal quality indices such as Silhouette~\cite{rousseeuw1987silhouettes}, Calinski--Harabasz~\cite{calinski1974dendrite}, and Davies--Bouldin~\cite{davies1979cluster} are commonly used. With labels, ARI and NMI provide agreement measures between predicted clusters and ground truth.
+
+\section{Method}
+\subsection{Audio feature extraction}
+Given an audio file \(x(t)\), a mel spectrogram is computed using\footnote{Implementation in \texttt{src/data.py} uses \texttt{librosa.feature.melspectrogram}.}:
+\begin{equation}
+S = \log_{10}(\epsilon + \mathrm{MelSpec}(x)),
+\end{equation}
+where \(\epsilon\) is a small constant to avoid taking log of zero.
+The input size is fixed by padding or truncating the time dimension to \texttt{target\_frames} and flattening to a vector of dimension \(d = n_{\mathrm{mels}} \times \texttt{target\_frames}\).
+Features are standardized per dimension using dataset mean and standard deviation.
+
+\subsection{Lyrics features and multimodal fusion (Medium)}
+When lyrics files are present, TF-IDF features with unigrams and bigrams are computed and concatenated with audio features. Missing lyrics are treated as empty strings.
+
+\subsection{VAE model}
+The Easy/Medium tasks use an MLP-VAE (\texttt{src/models.py}) with an encoder network producing \(\mu\) and \(\log \sigma^2\):
+\begin{align}
+q_{\phi}(z\mid x) &= \mathcal{N}\big(z;\mu_{\phi}(x),\mathrm{diag}(\sigma_{\phi}^2(x))\big),\\
+z &= \mu + \sigma \odot \epsilon,\quad \epsilon\sim\mathcal{N}(0,I).
+\end{align}
+The decoder reconstructs \(\hat{x}\) from \(z\) using a symmetric MLP.
+
+\paragraph{Objective.}
+The model is trained by minimizing MSE reconstruction with KL regularization:
+\begin{equation}
+\mathcal{L} = \underbrace{\mathrm{MSE}(x,\hat{x})}_{\mathcal{L}_{\mathrm{recon}}} + \beta\,\underbrace{\mathrm{KL}\left(q_{\phi}(z\mid x)\,\|\,p(z)\right)}_{\mathcal{L}_{\mathrm{KL}}},\qquad p(z)=\mathcal{N}(0,I).
+\end{equation}
+The Hard task uses a \(\beta\)-VAE by setting \(\beta>1\).
+
+\subsection{Clustering and visualization}
+After training, each track is encoded into its posterior mean \(\mu\) and the resulting embeddings are clustered.
+K-Means is applied in all tasks, and in Medium Agglomerative Clustering and DBSCAN are additionally evaluated.
+For visualization, latent vectors are embedded to 2-D using t-SNE or UMAP.
+
+\section{Experiments}
+\subsection{Dataset}
+Experiments use the repository's \texttt{dataset/audio} directory containing \texttt{.au} files with GTZAN-style naming. When \texttt{--use\_labels} is enabled, a coarse label is inferred as the filename prefix before the first dot (e.g., \texttt{blues} from \texttt{blues.00000.au}).
+
+\paragraph{Dataset sources.}
+The datasets used in this project were downloaded from Kaggle:
+
+
+
+(1) audio (GTZAN genre collection):
+\href{https://www.kaggle.com/datasets/carlthome/gtzan-genre-collection}{\nolinkurl{https://www.kaggle.com/datasets/carlthome/gtzan-genre-collection}};
+
+
+
+(2) English lyrics:
+\href{https://www.kaggle.com/datasets/suraj520/music-dataset-song-information-and-lyrics}{\nolinkurl{https://www.kaggle.com/datasets/suraj520/music-dataset-song-information-and-lyrics}}; and
+
+
+
+(3) Bangla lyrics:
+\href{https://www.kaggle.com/datasets/meherabhasansajid/bangla-song-lyrics-dataset-with-genres-and-artists}{\nolinkurl{https://www.kaggle.com/datasets/meherabhasansajid/bangla-song-lyrics-dataset-with-genres-and-artists}}.
+
+\subsection{Training details}
+Across tasks, models are trained using Adam with learning rate \(10^{-3}\) and mini-batch sizes of 32 on CPU by default.
+Unless specified, \texttt{latent\_dim=16} is used and models are trained for 30--50 epochs.
+
+\subsection{Evaluation metrics}
+For internal clustering quality, the following are reported:
+Silhouette score, Calinski--Harabasz index, and Davies--Bouldin index.
+When inferred labels are enabled, ARI, NMI, and cluster purity are also reported.
+
+\section{Results}
+This repository writes results to \texttt{results/easy}, \texttt{results/medium}, and \texttt{results/hard}.
+Tables are auto-populated from the CSV files produced by the scripts (e.g., \texttt{results/easy/metrics\_easy.csv}).
+
+\subsection{Easy task: VAE + K-Means vs PCA baseline}
+\begin{table}[H]
+\centering
+\caption{Easy task metrics from \texttt{results/easy/metrics\_easy.csv}.}
+\label{tab:easy}
+\pgfplotstabletypeset[
+  metrics-default,
+  columns={method,silhouette,calinski_harabasz,davies_bouldin,ari,nmi,purity},
+]{../results/easy/metrics_easy.csv}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{../results/easy/vae_tsne.png}
+  \caption{VAE latent (t-SNE)}
+\end{subfigure}
+\begin{subfigure}{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{../results/easy/pca_tsne.png}
+  \caption{PCA baseline (t-SNE)}
+\end{subfigure}
+\caption{Easy task cluster visualizations (paths assume running from \texttt{report/}).}
+\label{fig:easy_viz}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{Medium task: feature fusion and clustering methods}
+\begin{table}[H]
+\centering
+\caption{Medium task metrics from \texttt{results/medium/metrics\_medium.csv}.}
+\label{tab:medium}
+\pgfplotstabletypeset[
+  metrics-default,
+  columns={method,silhouette,calinski_harabasz,davies_bouldin,ari,nmi,purity},
+]{../results/medium/metrics_medium.csv}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.32\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{../results/medium/vae_kmeans_tsne.png}
+  \caption{VAE + K-Means}
+\end{subfigure}
+\begin{subfigure}{0.32\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{../results/medium/vae_agglomerative_tsne.png}
+  \caption{VAE + Agglomerative}
+\end{subfigure}
+\begin{subfigure}{0.32\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{../results/medium/vae_dbscan_tsne.png}
+  \caption{VAE + DBSCAN}
+\end{subfigure}
+\caption{Medium task latent-space visualizations (t-SNE) for different clustering algorithms.}
+\label{fig:medium_viz}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{Hard task: \texorpdfstring{$\beta$}{beta}-VAE}
+\begin{table}[H]
+\centering
+\caption{Hard task metrics from \texttt{results/hard/metrics\_hard.csv}.}
+\label{tab:hard}
+\pgfplotstabletypeset[
+  metrics-default,
+  columns={method,silhouette,calinski_harabasz,davies_bouldin,ari,nmi,purity},
+]{../results/hard/metrics_hard.csv}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\linewidth]{../results/hard/beta_vae_tsne.png}
+\caption{$\beta$-VAE latent visualization (t-SNE) (path assumes running from \texttt{report/}).}
+\label{fig:hard_viz}
+\end{figure}
+
+\FloatBarrier
+
+\section{Discussion}
+The Easy-task setup demonstrates that a VAE can learn a compact embedding that is more suitable for clustering than the raw flattened spectrogram space, while PCA provides a linear baseline.
+In the Medium task, adding lyrics (TF-IDF) may improve or degrade clustering depending on lyrics availability/quality and the relative scaling of modalities; this highlights the importance of careful multimodal fusion.
+In the Hard task, increasing \(\beta\) strengthens the KL constraint, typically producing smoother, more factorized latent spaces but with a trade-off in reconstruction quality.
+
+\paragraph{Limitations.}
+This implementation favors simplicity and reproducibility over state-of-the-art performance: the VAE is fully-connected (not convolutional), the audio representation is fixed-length and does not model temporal dynamics explicitly, and inferred labels from filenames only approximate ground truth.
+
+\section{Conclusion}
+This work implements an end-to-end VAE-based music clustering pipeline with clear baselines, multiple clustering options, and standard quality metrics. The repository produces reproducible quantitative tables and qualitative visualizations.
+Future work can explore convolutional/audio-transformer encoders, learned text embeddings, contrastive learning, and stronger multimodal fusion methods.
+
+\bibliography{references}
+\bibliographystyle{plain}
+
+\end{document}

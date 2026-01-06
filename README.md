@@ -9,15 +9,7 @@ It uses the provided `dataset/audio` folder (GTZAN-style files like `blues.00000
 On many Linux distros, `pip` is blocked from installing system-wide packages (PEP 668: `externally-managed-environment`).
 Use a **virtual environment** instead.
 
-### Option A: Use the existing repo venv (recommended)
-
-This repo already supports a local venv at `.venv/`.
-
-```bash
-./.venv/bin/python -m pip install -r requirements.txt
-```
-
-### Option B: Create a new venv
+### Option A: Create a new venv
 
 ```bash
 python3 -m venv .venv
@@ -28,6 +20,15 @@ python3 -m venv .venv
 ```bash
 pip install -r requirements.txt
 ```
+
+### Option B: Use the existing venv
+
+This repo already supports a local venv at `.venv/`.
+
+```bash
+./.venv/bin/python -m pip install -r requirements.txt
+```
+
 
 ## Easy task (VAE + KMeans + t-SNE/UMAP + PCA baseline)
 
