@@ -50,7 +50,6 @@ wandb/
 /dataset/audio/
 /dataset/lyrics/
 
-/report
+report/
 
-/Ignore
-
+Ignore/
